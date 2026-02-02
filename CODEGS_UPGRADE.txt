@@ -1,0 +1,177 @@
+// === CODE.GS UPGRADE (CRUD) ===
+// 把這份內容「完整覆蓋」到 Apps Script 的 Code.gs（需用可存檔的裝置）
+// 然後「管理部署作業 → 編輯 → 新增版本 → 佈署」
+//
+// 重要：工作表名稱請保持完全一致（含空格）：幸福教養課程管理
+// token 預設：angel
+
+const CONFIG = {
+  SHEET_NAME: "幸福教養課程管理",
+  REQUIRED_TOKEN: "angel",
+  ID_PREFIX: "C",
+  TIMEZONE: "Asia/Taipei"
+};
+
+function doGet(e) {
+  try {
+    const p = e && e.parameter ? e.parameter : {};
+    const action = (p.action || "list").toLowerCase();
+
+    const auth = checkAuth_(p);
+    if (!auth.ok) return out_({ ok: false, error: auth.error });
+
+    if (action === "ping") return out_({ ok: true, message: "API 正常運作" });
+
+    if (action === "list") {
+      const { headers, rows } = read_();
+      const items = rows.map(r => rowToObj_(headers, r));
+      return out_({ ok: true, items });
+    }
+
+    if (action === "get") {
+      if (!p.id) return out_({ ok: false, error: "Missing id" });
+      const item = getById_(p.id);
+      if (!item) return out_({ ok: false, error: "Not found" });
+      return out_({ ok: true, item });
+    }
+
+    return out_({ ok: false, error: "Unknown action" });
+  } catch (err) {
+    return out_({ ok: false, error: String(err) });
+  }
+}
+
+function doPost(e) {
+  try {
+    const body = e && e.postData && e.postData.contents
+      ? JSON.parse(e.postData.contents)
+      : {};
+
+    const auth = checkAuth_(body);
+    if (!auth.ok) return out_({ ok: false, error: auth.error });
+
+    const action = (body.action || "").toLowerCase();
+
+    if (action === "create") {
+      const item = create_(body.data || {});
+      return out_({ ok: true, item });
+    }
+
+    if (action === "update") {
+      if (!body.id) return out_({ ok: false, error: "Missing id" });
+      const item = update_(body.id, body.data || {});
+      return out_({ ok: true, item });
+    }
+
+    if (action === "delete") {
+      if (!body.id) return out_({ ok: false, error: "Missing id" });
+      delete_(body.id);
+      return out_({ ok: true });
+    }
+
+    return out_({ ok: false, error: "Unknown action" });
+  } catch (err) {
+    return out_({ ok: false, error: String(err) });
+  }
+}
+
+function getById_(id) {
+  const { headers, rows } = read_();
+  const idx = headers.indexOf("id");
+  for (let r of rows) {
+    if (String(r[idx]) === String(id)) return rowToObj_(headers, r);
+  }
+  return null;
+}
+
+function create_(data) {
+  const { sheet, headers } = read_();
+  const now = now_();
+
+  const obj = {};
+  headers.forEach(h => obj[h] = (data[h] !== undefined ? data[h] : ""));
+
+  if (!obj.id) obj.id = genId_();
+  if (headers.includes("created_at") && !obj.created_at) obj.created_at = now;
+  if (headers.includes("updated_at")) obj.updated_at = now;
+
+  sheet.appendRow(headers.map(h => obj[h] || ""));
+  return obj;
+}
+
+function update_(id, data) {
+  const { sheet, headers, rows } = read_();
+  const idx = headers.indexOf("id");
+
+  for (let i = 0; i < rows.length; i++) {
+    if (String(rows[i][idx]) === String(id)) {
+      const now = now_();
+      const obj = rowToObj_(headers, rows[i]);
+
+      Object.keys(data || {}).forEach(k => {
+        if (headers.indexOf(k) !== -1) obj[k] = data[k];
+      });
+
+      if (headers.includes("updated_at")) obj.updated_at = now;
+      sheet.getRange(i + 2, 1, 1, headers.length)
+        .setValues([headers.map(h => obj[h] || "")]);
+      return obj;
+    }
+  }
+  throw new Error("Not found");
+}
+
+function delete_(id) {
+  const { sheet, headers, rows } = read_();
+  const idx = headers.indexOf("id");
+  for (let i = 0; i < rows.length; i++) {
+    if (String(rows[i][idx]) === String(id)) {
+      sheet.deleteRow(i + 2);
+      return;
+    }
+  }
+  throw new Error("Not found");
+}
+
+function read_() {
+  const ss = SpreadsheetApp.getActive();
+  const sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
+  if (!sheet) throw new Error("Sheet not found: " + CONFIG.SHEET_NAME);
+
+  const lastCol = sheet.getLastColumn();
+  const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(String);
+
+  const lastRow = sheet.getLastRow();
+  const rows = lastRow > 1
+    ? sheet.getRange(2, 1, lastRow - 1, headers.length).getValues()
+    : [];
+
+  return { sheet, headers, rows };
+}
+
+function rowToObj_(headers, row) {
+  const o = {};
+  headers.forEach((h, i) => o[h] = row[i] || "");
+  return o;
+}
+
+function genId_() {
+  const d = new Date();
+  return `${CONFIG.ID_PREFIX}-${Utilities.formatDate(d, CONFIG.TIMEZONE, "yyyyMMdd-HHmmss")}`;
+}
+
+function now_() {
+  return Utilities.formatDate(new Date(), CONFIG.TIMEZONE, "yyyy-MM-dd'T'HH:mm:ss");
+}
+
+function checkAuth_(p) {
+  if (!CONFIG.REQUIRED_TOKEN) return { ok: true };
+  if (!p.token) return { ok: false, error: "Missing token" };
+  if (p.token !== CONFIG.REQUIRED_TOKEN) return { ok: false, error: "Invalid token" };
+  return { ok: true };
+}
+
+function out_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}

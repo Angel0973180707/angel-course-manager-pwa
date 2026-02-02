@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#1a241a" />
+  <title>幸福教養課程管理｜Course Manager</title>
+  <meta name="description" content="以 Google 試算表為中控臺的課程管理 PWA：搜尋、分類、檢視、（可選）新增/編修/刪除、匯出備份。" />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" href="./assets/icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="./assets/icons/icon-192.png" />
+  <style>
+    :root {
+      --bg:#0d140d;
+      --card:#121b12;
+      --text:#f2f6f2;
+      --muted:#b8c7b8;
+      --line:rgba(255,255,255,.10);
+      --accent:#9ad29a;
+      --warn:#ffcc66;
+      --danger:#ff7a7a;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --r:18px;
+    }
+    *{box-sizing:border-box}
+    body {
+      margin:0; background: radial-gradient(1200px 700px at 20% -10%, rgba(154,210,154,.12), transparent 60%),
+                           radial-gradient(900px 600px at 110% 0%, rgba(255,204,102,.10), transparent 55%),
+                           var(--bg);
+      color:var(--text); font-family: system-ui, -apple-system, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    }
+    .wrap{max-width:980px; margin:0 auto; padding:18px 14px 90px}
+    header {
+      position: sticky; top:0; z-index:5;
+      background: linear-gradient(to bottom, rgba(13,20,13,.92), rgba(13,20,13,.55));
+      backdrop-filter: blur(10px);
+      border-bottom:1px solid var(--line);
+    }
+    .topbar{max-width:980px; margin:0 auto; padding:14px}
+    .brand{display:flex; align-items:center; gap:10px}
+    .logo{width:34px; height:34px; border-radius:12px; background: rgba(154,210,154,.16); display:grid; place-items:center; border:1px solid var(--line)}
+    .logo span{font-weight:900; letter-spacing:.5px}
+    h1{font-size:16px; margin:0}
+    .sub{font-size:12px; color:var(--muted); margin-top:2px}
+    .row{display:flex; gap:10px; flex-wrap:wrap; margin-top:12px}
+    .pill{padding:8px 10px; border:1px solid var(--line); border-radius:999px; color:var(--muted); font-size:12px}
+    .pill b{color:var(--text)}
+    .controls{display:grid; grid-template-columns: 1.2fr .6fr .6fr; gap:10px; margin-top:16px}
+    @media (max-width:760px){ .controls{grid-template-columns:1fr 1fr;} .controls .wide{grid-column:1/-1} }
+    input, select, textarea {
+      width:100%; padding:12px 12px; border-radius:14px;
+      background: rgba(255,255,255,.04);
+      color: var(--text); border:1px solid var(--line);
+      outline:none;
+    }
+    textarea{min-height:110px; resize:vertical}
+    input::placeholder{color:rgba(242,246,242,.45)}
+    select option{background:#0d140d}
+    .btnrow{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px}
+    button {
+      border:1px solid var(--line);
+      background: rgba(154,210,154,.12);
+      color:var(--text); padding:11px 12px; border-radius:14px;
+      font-weight:700;
+    }
+    button.secondary{background: rgba(255,255,255,.05)}
+    button.danger{background: rgba(255,122,122,.14); border-color: rgba(255,122,122,.25)}
+    button:active{transform: translateY(1px)}
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border:1px solid var(--line); border-radius:var(--r);
+      box-shadow: var(--shadow);
+      padding:14px;
+    }
+    .grid{display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:14px}
+    @media (max-width:760px){ .grid{grid-template-columns:1fr} }
+    .list{display:grid; gap:10px; margin-top:14px}
+    .item {
+      background: rgba(255,255,255,.04);
+      border:1px solid var(--line);
+      border-radius:16px;
+      padding:12px;
+      display:flex; justify-content:space-between; align-items:flex-start;
+      gap:12px;
+    }
+    .item h3{margin:0; font-size:15px; line-height:1.35}
+    .meta{color:var(--muted); font-size:12px; margin-top:6px; display:flex; flex-wrap:wrap; gap:8px}
+    .tag{border:1px solid var(--line); border-radius:999px; padding:4px 8px; background: rgba(0,0,0,.15)}
+    .right{display:flex; flex-direction:column; gap:8px; align-items:flex-end}
+    .small{font-size:12px; color:var(--muted)}
+    .statusDot{display:inline-block; width:8px; height:8px; border-radius:99px; background: var(--accent); margin-right:6px}
+    .statusDot.warn{background: var(--warn)}
+    .statusDot.danger{background: var(--danger)}
+    .footerbar {
+      position:fixed; left:0; right:0; bottom:0; z-index:10;
+      background: rgba(13,20,13,.88);
+      backdrop-filter: blur(10px);
+      border-top:1px solid var(--line);
+    }
+    .footerbar .inner{max-width:980px; margin:0 auto; padding:10px 14px; display:flex; gap:10px; flex-wrap:wrap}
+    .toast{position:fixed; left:50%; transform:translateX(-50%); bottom:80px; background: rgba(0,0,0,.7); border:1px solid var(--line); padding:10px 12px; border-radius:999px; font-size:13px; opacity:0; pointer-events:none; transition:.2s}
+    .toast.show{opacity:1}
+    dialog {
+      border:none; border-radius:20px; padding:0;
+      width:min(920px, 96vw);
+      background: rgba(18,27,18,.98);
+      color:var(--text);
+      box-shadow: 0 20px 60px rgba(0,0,0,.6);
+      border:1px solid var(--line);
+    }
+    dialog::backdrop{background: rgba(0,0,0,.55)}
+    .dlgHead{padding:14px 14px 10px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:flex-start; gap:10px}
+    .dlgTitle{margin:0; font-size:16px}
+    .dlgBody{padding:14px}
+    .kv{display:grid; grid-template-columns:140px 1fr; gap:10px; margin-top:8px}
+    @media (max-width:760px){ .kv{grid-template-columns:1fr} }
+    .k{color:var(--muted); font-size:12px}
+    .v{white-space:pre-wrap; word-break:break-word}
+    .hr{height:1px; background: var(--line); margin:14px 0}
+    .hint{font-size:12px; color:var(--muted); line-height:1.6}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size:12px}
+  </style>
+</head>
+<body>
+<header>
+  <div class="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true"><span>⟡</span></div>
+      <div>
+        <h1>幸福教養課程管理</h1>
+        <div class="sub">Google 試算表中控臺｜搜尋・分類・查看・（可選）新增/編修/刪除｜PWA</div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="pill">API：<b id="apiLabel" class="mono"></b></div>
+      <div class="pill">狀態：<b id="apiStatus">未檢測</b></div>
+      <div class="pill">資料：<b id="countLabel">0</b> 筆</div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="controls">
+    <input id="q" class="wide" placeholder="搜尋：課程名稱 / 類型 / 標籤 / 內容..." />
+    <select id="type">
+      <option value="">全部類型</option>
+    </select>
+    <select id="status">
+      <option value="">全部狀態</option>
+      <option value="draft">草稿</option>
+      <option value="ready">完稿</option>
+      <option value="archived">封存</option>
+    </select>
+  </div>
+
+  <div class="btnrow">
+    <button id="btnRefresh" class="secondary">重新載入</button>
+    <button id="btnNew">＋ 新增課程</button>
+    <button id="btnExport" class="secondary">匯出 JSON 備份</button>
+    <button id="btnSettings" class="secondary">設定（API / token）</button>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <b>使用方式</b>
+      <div class="hint" style="margin-top:8px">
+        這是一個「課程中控臺」：把所有課程（演講／現場課／線上課／活動／備份）集中在同一張試算表。<br/>
+        你可以先用「只讀」模式跑起來；如果你的 GAS API 支援 create/update/delete，就能在手機直接新增與編修。
+      </div>
+      <div class="hr"></div>
+      <div class="hint">
+        <b>小提醒</b>：工作表名稱需完全一致（含空格）。你目前是：<span class="mono">幸福教養課程管理</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <b>目前篩選</b>
+      <div class="hint" id="filterHint" style="margin-top:8px">尚未載入</div>
+      <div class="hr"></div>
+      <div class="hint">
+        若你要「可編修」，請確認你的 Code.gs 有支援 POST：<span class="mono">create / update / delete</span>。<br/>
+        （我也把「可編修版 Code.gs」整理在下載包內的 <span class="mono">CODEGS_UPGRADE.txt</span>）
+      </div>
+    </div>
+  </div>
+
+  <div class="list" id="list"></div>
+</div>
+
+<div class="footerbar">
+  <div class="inner">
+    <button id="btnPing" class="secondary">檢測 API</button>
+    <button id="btnOpenSheet" class="secondary">打開試算表</button>
+    <span class="hint">任何時候停下來都可以。只要舒服，就很好。</span>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<dialog id="dlgDetail">
+  <div class="dlgHead">
+    <div>
+      <div class="dlgTitle" id="detailTitle">課程</div>
+      <div class="hint mono" id="detailId"></div>
+    </div>
+    <div class="btnrow" style="margin:0">
+      <button id="btnEdit" class="secondary">編修</button>
+      <button id="btnDelete" class="danger">刪除</button>
+      <button id="btnCloseDetail" class="secondary">關閉</button>
+    </div>
+  </div>
+  <div class="dlgBody" id="detailBody"></div>
+</dialog>
+
+<dialog id="dlgForm">
+  <div class="dlgHead">
+    <div>
+      <div class="dlgTitle" id="formTitle">新增/編修</div>
+      <div class="hint mono" id="formIdHint"></div>
+    </div>
+    <div class="btnrow" style="margin:0">
+      <button id="btnSave">儲存</button>
+      <button id="btnCancel" class="secondary">取消</button>
+    </div>
+  </div>
+  <div class="dlgBody">
+    <div class="grid" style="margin-top:0">
+      <div>
+        <div class="hint">title（名稱）</div>
+        <input id="f_title" placeholder="例如：幸福教養體驗活動：情緒急救到關係修復" />
+      </div>
+      <div>
+        <div class="hint">type（類型）</div>
+        <input id="f_type" placeholder="例如：演講 / 現場課 / 線上課 / 活動 / 備份" />
+      </div>
+      <div>
+        <div class="hint">status（狀態）</div>
+        <select id="f_status">
+          <option value="draft">draft 草稿</option>
+          <option value="ready">ready 完稿</option>
+          <option value="archived">archived 封存</option>
+        </select>
+      </div>
+      <div>
+        <div class="hint">tags（標籤，可用逗號）</div>
+        <input id="f_tags" placeholder="例如：親子, 情緒, 關係, PWA" />
+      </div>
+      <div class="wide" style="grid-column:1/-1">
+        <div class="hint">summary（簡介）</div>
+        <textarea id="f_summary" placeholder="一句話讓自己看懂：這堂課的目的 / 亮點 / 適用情境"></textarea>
+      </div>
+      <div class="wide" style="grid-column:1/-1">
+        <div class="hint">links（連結：講義/影片/表單等）</div>
+        <textarea id="f_links" placeholder="可貼多行網址或備註"></textarea>
+      </div>
+      <div class="wide" style="grid-column:1/-1">
+        <div class="hint">notes（備註）</div>
+        <textarea id="f_notes" placeholder="教案備忘、備份位置、更新記錄…"></textarea>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dlgSettings">
+  <div class="dlgHead">
+    <div>
+      <div class="dlgTitle">設定</div>
+      <div class="hint">把 API / token 存在本機（localStorage）。</div>
+    </div>
+    <div class="btnrow" style="margin:0">
+      <button id="btnSaveSettings">儲存設定</button>
+      <button id="btnCloseSettings" class="secondary">關閉</button>
+    </div>
+  </div>
+  <div class="dlgBody">
+    <div class="grid" style="margin-top:0">
+      <div style="grid-column:1/-1">
+        <div class="hint">API URL（exec）</div>
+        <input id="s_api" />
+      </div>
+      <div>
+        <div class="hint">token</div>
+        <input id="s_token" />
+      </div>
+      <div>
+        <div class="hint">工作表名稱（提示）</div>
+        <input value="幸福教養課程管理" disabled />
+      </div>
+      <div style="grid-column:1/-1" class="hint">
+        <b>你已通過 ping 測試</b>：代表 token 與部署都沒問題。<br/>
+        若「新增/編修/刪除」失敗，多半是 API 還是極簡版（只有 list）。你可以先用只讀模式正常管理，或改用升級版 Code.gs。
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<script src="./app.js"></script>
+</body>
+</html>
